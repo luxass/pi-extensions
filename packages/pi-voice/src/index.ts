@@ -1,4 +1,3 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 import {
@@ -9,70 +8,65 @@ import {
 import { Key } from "@earendil-works/pi-tui";
 import {
   createRecorder,
-  defaultModel,
+  getActiveProfile,
   listInputDevices,
-  modelChoices,
-  resolveOptions,
-  resolvePreferredDevice,
+  loadVoiceSettings,
+  saveVoiceSettings,
   transcribe,
-  transcriptionProfile,
-  type VoiceConfig,
 } from "@luxass/agent-voice";
 
-function settingsPath() {
-  return process.env.AGENT_VOICE_SETTINGS ?? join(getAgentDir(), "voice-settings.json");
-}
-
-function loadSettings() {
-  const path = settingsPath();
-  return resolveOptions(
-    existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>) : {},
-  );
-}
-
-function saveSettings(config: VoiceConfig) {
-  writeFileSync(settingsPath(), `${JSON.stringify(config, null, 2)}\n`);
-}
+import { promptProfile } from "./profile";
 
 export default function voice(pi: ExtensionAPI) {
-  const config = loadSettings();
+  const path = process.env.AGENT_VOICE_SETTINGS ?? join(getAgentDir(), "voice-settings.json");
+  const settings = loadVoiceSettings(path);
+  const recorder = createRecorder();
 
-  let recordingUI: ExtensionContext["ui"];
-  const recorder = createRecorder({
-    onError: (error) => {
-      recordingUI.notify(`Recording failed: ${error.message}`, "error");
-    },
-  });
-  let activeInput = "system default";
+  function statusText(state = recorder.isRecording ? "● recording" : "ready"): string {
+    const { name, transcription } = getActiveProfile(settings);
+    const model =
+      transcription.type === "api"
+        ? transcription.model
+        : transcription.model === undefined
+          ? "auto model"
+          : basename(transcription.model, ".bin");
+    return `voice ${state} · ${name} · ${model} · ${settings.inputDevice?.name ?? "system default"}`;
+  }
 
+  function showStatus(ui: ExtensionContext["ui"], state?: string): void {
+    ui.setStatus("voice", statusText(state));
+  }
+
+  // Errors thrown from command and shortcut handlers are reported by Pi.
   async function toggle(ctx: ExtensionContext): Promise<void> {
     if (!recorder.isRecording) {
-      const { device, warning } =
-        config.input === ""
-          ? { device: undefined, warning: undefined }
-          : resolvePreferredDevice(await listInputDevices(), config.input);
-      if (warning !== undefined) ctx.ui.notify(warning, "warning");
-      recordingUI = ctx.ui;
-      recorder.start(device);
-      activeInput = device?.name ?? "system default";
-      ctx.ui.notify(`Recording from ${activeInput}… run again to transcribe`);
+      recorder.start(settings.inputDevice, (error) => {
+        showStatus(ctx.ui);
+        ctx.ui.notify(`Recording failed: ${error.message}`, "error");
+      });
+      showStatus(ctx.ui);
+      ctx.ui.notify(
+        `Recording from ${settings.inputDevice?.name ?? "system default"}… run again to transcribe`,
+      );
       return;
     }
 
-    const recordingFile = await recorder.stop();
+    showStatus(ctx.ui, "transcribing…");
     try {
-      const text = await transcribe(
-        recordingFile,
-        transcriptionProfile(config, config.activeTranscription),
-      );
-      ctx.ui.pasteToEditor(text);
-      ctx.ui.notify("Transcription pasted into the composer", "info");
+      const file = await recorder.stop();
+      try {
+        const text = await transcribe(file, getActiveProfile(settings).transcription);
+        ctx.ui.pasteToEditor(text);
+        ctx.ui.notify("Transcription pasted into the composer", "info");
+      } finally {
+        recorder.discard(file);
+      }
     } finally {
-      recorder.discard(recordingFile);
+      showStatus(ctx.ui);
     }
   }
 
-  pi.registerShortcut(Key.ctrlAlt("v"), {
+  pi.registerShortcut(Key.ctrlShift("v"), {
     description: "record/transcribe into the composer",
     handler: toggle,
   });
@@ -88,7 +82,8 @@ export default function voice(pi: ExtensionAPI) {
     handler: async (_args, ctx) => {
       if (!recorder.isRecording) return;
       recorder.cancel();
-      ctx.ui.notify("Recording cancelled");
+      showStatus(ctx.ui);
+      ctx.ui.notify("Recording discarded");
     },
   });
 
@@ -99,76 +94,82 @@ export default function voice(pi: ExtensionAPI) {
         ctx.ui.notify("Stop recording before changing the input", "warning");
         return;
       }
-
       const devices = await listInputDevices();
-      const names = ["System default", ...devices.map((device) => device.name)];
-      const selected = await ctx.ui.select("Test voice input device", names);
+      const selected = await ctx.ui.select("Voice input device", [
+        "System default",
+        ...devices.map((device) => device.name),
+      ]);
       if (selected === undefined) return;
-
-      const device = devices.find((device) => device.name === selected);
-      const nextInput = selected === "System default" ? "" : device?.id;
-      if (nextInput === undefined) return;
-      config.input = nextInput;
-      saveSettings(config);
-      ctx.ui.notify(`Voice input: ${device?.name ?? "system default"}`);
+      const device = devices.find((candidate) => candidate.name === selected);
+      if (device) settings.inputDevice = device;
+      else delete settings.inputDevice;
+      saveVoiceSettings(path, settings);
+      showStatus(ctx.ui);
+      ctx.ui.notify(`Voice input: ${selected}`);
     },
   });
-  pi.registerCommand("voice-model", {
-    description: "select transcription model",
-    handler: async (_args, ctx) => {
-      if (recorder.isRecording) {
-        ctx.ui.notify("Stop recording before changing the model", "warning");
+
+  pi.registerCommand("voice-profile", {
+    description: "select transcription profile, `add` one, or change the API `model`",
+    getArgumentCompletions: (prefix) => {
+      const items = [
+        { value: "add", label: "add", description: "create a transcription profile" },
+        { value: "model", label: "model", description: "change the active API profile's model" },
+      ].filter((item) => item.value.startsWith(prefix));
+      return items.length > 0 ? items : null;
+    },
+    handler: async (args, ctx) => {
+      const subcommand = args.trim();
+      if (subcommand === "model") {
+        const { name, transcription } = getActiveProfile(settings);
+        if (transcription.type !== "api") {
+          ctx.ui.notify(`${name} is a local profile; switch profiles to change models`, "warning");
+          return;
+        }
+        const model = (await ctx.ui.input(`Model for ${name}`, transcription.model))?.trim();
+        if (!model) return;
+        transcription.model = model;
+        saveVoiceSettings(path, settings);
+        showStatus(ctx.ui);
+        ctx.ui.notify(`Voice profile ${name}: ${model}`);
         return;
       }
-
-      const entries = Object.entries(config.transcriptions).flatMap(([profile, transcription]) => {
-        const prefix = `${profile} · `;
-        if (transcription.type === "api") {
-          return transcription.models.map((model) => ({
-            title: `${prefix}${model}`,
-            profile,
-            model,
-          }));
-        }
-
-        return modelChoices(transcription).map((choice) => ({
-          title: `${prefix}${choice.title}`,
-          profile,
-          model: choice.value,
-        }));
-      });
-
-      const selected = await ctx.ui.select(
-        "Test transcription model",
-        entries.map((entry) => entry.title),
-      );
-      const entry = entries.find((entry) => entry.title === selected);
-      if (!entry) return;
-      const transcription = transcriptionProfile(config, entry.profile);
-      if (transcription.type === "api") {
-        transcription.models = [
-          entry.model,
-          ...transcription.models.filter((model) => model !== entry.model),
-        ];
-      } else {
-        transcription.model = entry.model;
+      if (subcommand === "add") {
+        const added = await promptProfile(ctx.ui, Object.keys(settings.profiles ?? {}));
+        if (!added) return;
+        settings.profiles = { ...settings.profiles, [added.name]: added.profile };
+        settings.activeProfile = added.name;
+        saveVoiceSettings(path, settings);
+        showStatus(ctx.ui);
+        ctx.ui.notify(`Voice profile: ${added.name}`);
+        return;
       }
-
-      config.activeTranscription = entry.profile;
-      saveSettings(config);
-      ctx.ui.notify(`Voice backend: ${entry.title}`);
+      if (!settings.profiles) {
+        ctx.ui.notify("No profiles yet; run /voice-profile add", "warning");
+        return;
+      }
+      const selected = await ctx.ui.select(
+        "Voice transcription profile",
+        Object.keys(settings.profiles),
+      );
+      if (selected === undefined) return;
+      settings.activeProfile = selected;
+      saveVoiceSettings(path, settings);
+      showStatus(ctx.ui);
+      ctx.ui.notify(`Voice profile: ${selected}`);
     },
   });
 
   pi.registerCommand("voice-status", {
-    description: "show model and input",
+    description: "show profile and input",
+    // oxlint-disable-next-line require-await
     handler: async (_args, ctx) => {
-      const source = recorder.isRecording ? activeInput : config.input || "system default";
-      const model = defaultModel(transcriptionProfile(config, config.activeTranscription));
-      ctx.ui.notify(
-        `${recorder.isRecording ? "Recording" : "Ready"} · ${config.activeTranscription} · ${basename(model)} · ${source}`,
-      );
+      ctx.ui.notify(statusText());
     },
+  });
+
+  pi.on("session_start", (_event, ctx) => {
+    showStatus(ctx.ui);
   });
 
   pi.on("session_shutdown", () => {

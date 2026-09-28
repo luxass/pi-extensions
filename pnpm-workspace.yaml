@@ -1,8 +1,14 @@
 packages:
   - packages/*
 
+versioning:
+  changelog:
+    storage: repository
+
 ignoreScripts: true
 minimumReleaseAge: 7200
+minimumReleaseAgeExclude:
+  - "@luxass/agent-voice@0.1.0"
 trustPolicy: no-downgrade
 catalogMode: prefer
 strictDepBuilds: true
@@ -19,13 +25,10 @@ catalogs:
     "@earendil-works/pi-tui": 0.87.0
 
   agent:
-    "@luxass/agent-voice": 0.0.1
+    "@luxass/agent-voice": 0.1.0
 
   dev:
     oxfmt: 0.61.0
     oxlint: 1.76.0
     oxlint-tsgolint: 7.0.2001
     typescript: 7.0.2
-
-minimumReleaseAgeExclude:
-  - "@luxass/agent-voice@0.0.1"

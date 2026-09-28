@@ -1,7 +1,6 @@
 {
   "name": "@luxass/pi-voice",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "keywords": [
     "pi-package"
   ],
@@ -9,6 +8,12 @@
     "src"
   ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
   "dependencies": {
     "@luxass/agent-voice": "catalog:agent"
   },

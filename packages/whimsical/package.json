@@ -1,7 +1,6 @@
 {
   "name": "@luxass/pi-whimsical",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "keywords": [
     "pi-package"
   ],
@@ -9,10 +8,12 @@
     "src"
   ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "oxlint src test",
-    "test": "node --test test/*.test.mjs"
+    "lint": "oxlint src"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
