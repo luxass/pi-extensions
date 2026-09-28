@@ -1,0 +1,25 @@
+{
+  "name": "@luxass/pi-voice",
+  "version": "0.0.0",
+  "private": true,
+  "keywords": [
+    "pi-package"
+  ],
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "dependencies": {
+    "@luxass/agent-voice": "catalog:agent"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  }
+}
