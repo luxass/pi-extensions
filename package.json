@@ -1,0 +1,24 @@
+{
+  "name": "pi-extensions",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint .",
+    "fmt": "oxfmt .",
+    "fmt:check": "oxfmt --check .",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test",
+    "check": "pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "catalog:pi",
+    "@earendil-works/pi-coding-agent": "catalog:pi",
+    "@earendil-works/pi-tui": "catalog:pi",
+    "@types/node": "catalog:types",
+    "oxfmt": "catalog:dev",
+    "oxlint": "catalog:dev",
+    "oxlint-tsgolint": "catalog:dev",
+    "typebox": "catalog:types",
+    "typescript": "catalog:dev"
+  }
+}
