@@ -1,0 +1,25 @@
+{
+  "name": "@luxass/pi-whimsical",
+  "version": "0.0.0",
+  "private": true,
+  "keywords": [
+    "pi-package"
+  ],
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src test",
+    "test": "node --test test/*.test.mjs"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./src/whimsical.ts"
+    ]
+  }
+}
