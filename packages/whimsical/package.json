@@ -1,11 +1,18 @@
 {
   "name": "@luxass/pi-whimsical",
   "version": "0.1.0",
+  "description": "Playful working messages for Pi",
   "keywords": [
     "pi-package"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/luxass/pi-extensions",
+    "directory": "packages/whimsical"
+  },
   "files": [
-    "src"
+    "src",
+    "README.md"
   ],
   "type": "module",
   "publishConfig": {
