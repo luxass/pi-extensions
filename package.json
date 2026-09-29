@@ -8,9 +8,13 @@
     "fmt:check": "oxfmt --check .",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --if-present run test",
-    "check": "pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test"
+    "check": "pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test",
+    "release:version": "changeset version && pnpm install --lockfile-only",
+    "release:stage": "pnpm stage publish -r --access public --no-git-checks && changeset git-tag"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:",
     "@earendil-works/pi-ai": "catalog:pi",
     "@earendil-works/pi-coding-agent": "catalog:pi",
     "@earendil-works/pi-tui": "catalog:pi",
@@ -20,5 +24,6 @@
     "oxlint-tsgolint": "catalog:dev",
     "typebox": "catalog:types",
     "typescript": "catalog:dev"
-  }
+  },
+  "packageManager": "pnpm@12.5.1"
 }

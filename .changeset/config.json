@@ -1,0 +1,7 @@
+{
+  "changelog": ["@changesets/changelog-github", { "repo": "luxass/pi-extensions" }],
+  "commit": false,
+  "access": "public",
+  "baseBranch": "main",
+  "format": "oxfmt"
+}

@@ -1,0 +1,89 @@
+name: Publish packages
+
+on:
+  push:
+    branches:
+      - main
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  select-mode:
+    if: ${{ github.repository == 'luxass/pi-extensions' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      mode: ${{ steps.select-mode.outputs.mode }}
+    permissions:
+      contents: read
+    steps:
+      - name: Set up workspace
+        uses: luxass/shared-workflows/actions/setup@3a2dc4e52b786682a0f0fba65eca46b49b7b5c8b # actions/setup/v0.1.5
+        with:
+          node-version: "24"
+
+      - name: Select Changesets mode
+        id: select-mode
+        uses: changesets/action/select-mode@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+
+  version:
+    needs: select-mode
+    if: ${{ needs.select-mode.outputs.mode == 'version' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - name: Set up workspace
+        uses: luxass/shared-workflows/actions/setup@3a2dc4e52b786682a0f0fba65eca46b49b7b5c8b # actions/setup/v0.1.5
+        with:
+          node-version: "24"
+          fetch-depth: 0
+
+      - name: Generate release app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: luxass
+          repositories: pi-extensions
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Create or update version PR
+        uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: pnpm release:version
+          commit-message: "chore: version packages"
+          pr-title: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+  publish:
+    needs: select-mode
+    if: ${{ needs.select-mode.outputs.mode == 'publish' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm-registry
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Set up workspace
+        uses: luxass/shared-workflows/actions/setup@3a2dc4e52b786682a0f0fba65eca46b49b7b5c8b # actions/setup/v0.1.5
+        with:
+          node-version: "24"
+          fetch-depth: 0
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Stage packages and create GitHub releases
+        uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          script: pnpm release:stage

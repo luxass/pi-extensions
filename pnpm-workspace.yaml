@@ -1,10 +1,6 @@
 packages:
   - packages/*
 
-versioning:
-  changelog:
-    storage: repository
-
 ignoreScripts: true
 minimumReleaseAge: 7200
 minimumReleaseAgeExclude:
@@ -32,3 +28,6 @@ catalogs:
     oxlint: 1.76.0
     oxlint-tsgolint: 7.0.2001
     typescript: 7.0.2
+catalog:
+  "@changesets/changelog-github": 1.0.1
+  "@changesets/cli": 3.0.3
