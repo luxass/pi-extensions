@@ -11,11 +11,18 @@ import {
   getActiveProfile,
   listInputDevices,
   loadVoiceSettings,
+  runDoctor,
   saveVoiceSettings,
   transcribe,
+  type DoctorCheckId,
 } from "@luxass/agent-voice";
 
-import { promptProfile } from "./profile";
+import { pickLocalModel, promptProfile } from "./profile";
+
+const DOCTOR_FIXES: Partial<Record<DoctorCheckId, string>> = {
+  device: "run /voice-device",
+  model: "run /voice-profile model",
+};
 
 export default function voice(pi: ExtensionAPI) {
   const path = process.env.AGENT_VOICE_SETTINGS ?? join(getAgentDir(), "voice-settings.json");
@@ -27,9 +34,7 @@ export default function voice(pi: ExtensionAPI) {
     const model =
       transcription.type === "api"
         ? transcription.model
-        : transcription.model === undefined
-          ? "auto model"
-          : basename(transcription.model, ".bin");
+        : basename(transcription.model ?? "auto model", ".bin");
     return `voice ${state} · ${name} · ${model} · ${settings.inputDevice?.name ?? "system default"}`;
   }
 
@@ -99,10 +104,8 @@ export default function voice(pi: ExtensionAPI) {
         "System default",
         ...devices.map((device) => device.name),
       ]);
-      if (selected === undefined) return;
-      const device = devices.find((candidate) => candidate.name === selected);
-      if (device) settings.inputDevice = device;
-      else delete settings.inputDevice;
+      if (selected == null) return;
+      settings.inputDevice = devices.find((device) => device.name === selected);
       saveVoiceSettings(path, settings);
       showStatus(ctx.ui);
       ctx.ui.notify(`Voice input: ${selected}`);
@@ -110,30 +113,17 @@ export default function voice(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("voice-profile", {
-    description: "select transcription profile, `add` one, or change the API `model`",
+    description: "select transcription profile, `add` one, or change its `model`",
     getArgumentCompletions: (prefix) => {
       const items = [
         { value: "add", label: "add", description: "create a transcription profile" },
-        { value: "model", label: "model", description: "change the active API profile's model" },
+        { value: "model", label: "model", description: "change the active profile's model" },
       ].filter((item) => item.value.startsWith(prefix));
       return items.length > 0 ? items : null;
     },
     handler: async (args, ctx) => {
       const subcommand = args.trim();
-      if (subcommand === "model") {
-        const { name, transcription } = getActiveProfile(settings);
-        if (transcription.type !== "api") {
-          ctx.ui.notify(`${name} is a local profile; switch profiles to change models`, "warning");
-          return;
-        }
-        const model = (await ctx.ui.input(`Model for ${name}`, transcription.model))?.trim();
-        if (!model) return;
-        transcription.model = model;
-        saveVoiceSettings(path, settings);
-        showStatus(ctx.ui);
-        ctx.ui.notify(`Voice profile ${name}: ${model}`);
-        return;
-      }
+
       if (subcommand === "add") {
         const added = await promptProfile(ctx.ui, Object.keys(settings.profiles ?? {}));
         if (!added) return;
@@ -144,19 +134,49 @@ export default function voice(pi: ExtensionAPI) {
         ctx.ui.notify(`Voice profile: ${added.name}`);
         return;
       }
+
+      if (subcommand === "model") {
+        const { name, transcription } = getActiveProfile(settings);
+        const model =
+          transcription.type === "api"
+            ? (await ctx.ui.input(`Model for ${name}`, transcription.model))?.trim()
+            : await pickLocalModel(ctx.ui);
+        if (!model) return;
+        transcription.model = model;
+        // Without saved profiles the active profile is implicit; save it to keep the model.
+        settings.profiles ??= { [name]: transcription };
+        settings.activeProfile = name;
+        saveVoiceSettings(path, settings);
+        showStatus(ctx.ui);
+        ctx.ui.notify(`Voice profile ${name}: ${model}`);
+        return;
+      }
+
       if (!settings.profiles) {
         ctx.ui.notify("No profiles yet; run /voice-profile add", "warning");
         return;
       }
+
       const selected = await ctx.ui.select(
         "Voice transcription profile",
         Object.keys(settings.profiles),
       );
-      if (selected === undefined) return;
+      if (selected == null) return;
       settings.activeProfile = selected;
       saveVoiceSettings(path, settings);
       showStatus(ctx.ui);
       ctx.ui.notify(`Voice profile: ${selected}`);
+    },
+  });
+
+  pi.registerCommand("voice-doctor", {
+    description: "check recording and transcription setup",
+    handler: async (_args, ctx) => {
+      const checks = await runDoctor(settings);
+      const lines = checks.map(({ id, ok, detail, fix }) =>
+        ok ? `✓ ${id}: ${detail}` : `✗ ${id}: ${detail} → ${DOCTOR_FIXES[id] ?? fix}`,
+      );
+      ctx.ui.notify(lines.join("\n"), checks.every(({ ok }) => ok) ? "info" : "warning");
     },
   });
 

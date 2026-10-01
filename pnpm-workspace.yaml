@@ -3,12 +3,13 @@ packages:
 
 ignoreScripts: true
 minimumReleaseAge: 7200
-minimumReleaseAgeExclude:
-  - "@luxass/agent-voice@0.1.0"
 trustPolicy: no-downgrade
 catalogMode: prefer
 strictDepBuilds: true
 blockExoticSubdeps: true
+
+minimumReleaseAgeExclude:
+  - "@luxass/agent-voice@0.3.0"
 
 catalogs:
   types:
@@ -21,7 +22,7 @@ catalogs:
     "@earendil-works/pi-tui": 0.87.0
 
   agent:
-    "@luxass/agent-voice": 0.1.0
+    "@luxass/agent-voice": 0.3.0
 
   dev:
     oxfmt: 0.61.0

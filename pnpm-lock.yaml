@@ -165,8 +165,8 @@ settings:
 catalogs:
   agent:
     '@luxass/agent-voice':
-      specifier: 0.1.0
-      version: 0.1.0
+      specifier: 0.3.0
+      version: 0.3.0
   default:
     '@changesets/changelog-github':
       specifier: 1.0.1
@@ -256,7 +256,7 @@ importers:
         version: 0.87.0
       '@luxass/agent-voice':
         specifier: catalog:agent
-        version: 0.1.0
+        version: 0.3.0
 
   packages/whimsical:
     dependencies:
@@ -627,8 +627,8 @@ packages:
       '@modelcontextprotocol/sdk':
         optional: true
 
-  '@luxass/agent-voice@0.1.0':
-    resolution: {integrity: sha512-IwhNyckheHvtD32RjDdg7AblDd60MXUUGB9F13xYE+HO1aYyKntfU7uUme/aH2j9uu63T8Ua/ZsRVHIDu3Skqw==}
+  '@luxass/agent-voice@0.3.0':
+    resolution: {integrity: sha512-Xj2qwjYEkbwLJfm/t4n3tjf9WixZjp42d8y++j+DflcssTwmZjHx39+uPKw3bmREHynmTdQvsojm73AECnXNpQ==}
     engines: {node: '>=24'}
 
   '@manypkg/find-root@3.1.0':
@@ -1983,7 +1983,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@luxass/agent-voice@0.1.0':
+  '@luxass/agent-voice@0.3.0':
     dependencies:
       typebox: 1.3.27
 

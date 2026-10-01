@@ -1,25 +1,46 @@
-import { basename } from "node:path";
-
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import { discoverLocalModels, type TranscriptionProfile } from "@luxass/agent-voice";
+import {
+  downloadModel,
+  listLocalModels,
+  type LocalModel,
+  type TranscriptionProfile,
+} from "@luxass/agent-voice";
 
-const AUTO_MODEL = "Auto-detect when transcribing";
+const label = ({ name, installed, approxMB }: LocalModel) =>
+  installed ? name : `Download ${name} (${approxMB} MB)`;
+
+function download(ui: ExtensionUIContext, name: string): Promise<string> {
+  let shown = -1;
+  return downloadModel(name, {
+    // Without a Content-Length, treat what arrived as the whole file.
+    onProgress: (received, total = received) => {
+      const percent = Math.floor((received / total) * 100);
+      if (percent === shown) return;
+      shown = percent;
+      ui.setStatus("voice-download", `downloading ${name}… ${percent}%`);
+    },
+  }).finally(() => {
+    ui.setStatus("voice-download", undefined);
+  });
+}
+
+/** Pick an installed model, or one from the curated list, which is downloaded right away. */
+export async function pickLocalModel(ui: ExtensionUIContext): Promise<string | undefined> {
+  const models = listLocalModels();
+  const picked = await ui.select(
+    "Whisper model",
+    models.map((model) => label(model)),
+  );
+  const model = models.find((candidate) => label(candidate) === picked);
+  return model == null || model.installed ? model?.path : download(ui, model.name);
+}
 
 async function promptLocal(ui: ExtensionUIContext): Promise<TranscriptionProfile | undefined> {
-  const models = discoverLocalModels();
-  const picked = await ui.select("Whisper model", [
-    AUTO_MODEL,
-    ...models.map((model) => basename(model)),
-  ]);
-  if (picked === undefined) return undefined;
+  const model = await pickLocalModel(ui);
+  if (model == null) return undefined;
   const language = await ui.input("Language code (blank for auto)", "en");
-  if (language === undefined) return undefined;
-
-  const profile: TranscriptionProfile = { type: "local" };
-  const model = models.find((candidate) => basename(candidate) === picked);
-  if (model) profile.model = model;
-  if (language.trim()) profile.language = language.trim();
-  return profile;
+  if (language == null) return undefined;
+  return { type: "local", model, language: language.trim() || undefined };
 }
 
 async function promptApi(ui: ExtensionUIContext): Promise<TranscriptionProfile | undefined> {
@@ -31,13 +52,16 @@ async function promptApi(ui: ExtensionUIContext): Promise<TranscriptionProfile |
     "API key environment variable (blank for none)",
     "OPENAI_API_KEY",
   );
-  if (apiKeyEnv === undefined) return undefined;
+  if (apiKeyEnv == null) return undefined;
   const format = await ui.select("Request format", ["multipart", "openrouter"]);
-  if (format !== "multipart" && format !== "openrouter") return undefined;
-
-  const profile: TranscriptionProfile = { type: "api", endpoint, model, format };
-  if (apiKeyEnv.trim()) profile.apiKeyEnv = apiKeyEnv.trim();
-  return profile;
+  if (format == null) return undefined;
+  return {
+    type: "api",
+    endpoint,
+    model,
+    format: format === "openrouter" ? "openrouter" : "multipart",
+    apiKeyEnv: apiKeyEnv.trim() || undefined,
+  };
 }
 
 /** Ask for a profile name and its transcription settings. Returns undefined when the user backs out. */
@@ -51,7 +75,7 @@ export async function promptProfile(
     return undefined;
 
   const type = await ui.select("Transcription", ["local", "api"]);
-  const profile =
-    type === "local" ? await promptLocal(ui) : type === "api" ? await promptApi(ui) : undefined;
+  if (type == null) return undefined;
+  const profile = type === "local" ? await promptLocal(ui) : await promptApi(ui);
   return profile && { name, profile };
 }
