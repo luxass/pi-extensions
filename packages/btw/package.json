@@ -1,0 +1,34 @@
+{
+  "name": "@luxass/pi-btw",
+  "version": "0.0.0",
+  "description": "Side questions in a Pi popover",
+  "keywords": [
+    "pi-package"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/luxass/pi-extensions",
+    "directory": "packages/btw"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  }
+}
