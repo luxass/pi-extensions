@@ -16,5 +16,9 @@ jobs:
     with:
       node-version: "24"
       build: false
+      lint: true
+      lint-script: "lint"
+      typecheck: true
+      typecheck-script: "typecheck"
       fmt: true
       fmt-script: "fmt:check"

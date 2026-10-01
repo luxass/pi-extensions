@@ -3,10 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "oxlint .",
+    "lint": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix --deny-warnings .",
     "fmt": "oxfmt .",
     "fmt:check": "oxfmt --check .",
-    "typecheck": "pnpm -r --if-present run typecheck",
+    "typecheck": "tsc -p tsconfig.json && pnpm -r --no-bail exec tsc -p tsconfig.json",
     "test": "pnpm -r --if-present run test",
     "check": "pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test",
     "release:version": "changeset version && pnpm install --lockfile-only",

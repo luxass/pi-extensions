@@ -19,8 +19,11 @@
     "access": "public"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "oxlint src"
+    "lint": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix --deny-warnings .",
+    "fmt": "oxfmt .",
+    "fmt:check": "oxfmt --check .",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
