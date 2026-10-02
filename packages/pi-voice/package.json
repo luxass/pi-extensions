@@ -1,9 +1,16 @@
 {
   "name": "@luxass/pi-voice",
   "version": "0.2.0",
-  "description": "Voice recording and transcription for Pi",
+  "description": "Record voice input with /voice, transcribe locally or through an API, and paste it into Pi's composer.",
   "keywords": [
-    "pi-package"
+    "dictation",
+    "pi",
+    "pi-extension",
+    "pi-package",
+    "speech-to-text",
+    "transcription",
+    "voice",
+    "whisper"
   ],
   "license": "MIT",
   "repository": {

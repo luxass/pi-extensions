@@ -1,9 +1,14 @@
 {
   "name": "@luxass/pi-whimsical",
   "version": "0.1.0",
-  "description": "Playful working messages for Pi",
+  "description": "Replace Pi's working message with rotating coding jokes, fantasy, memes, and Star Wars references.",
   "keywords": [
-    "pi-package"
+    "humor",
+    "pi",
+    "pi-extension",
+    "pi-package",
+    "status-messages",
+    "working-messages"
   ],
   "license": "MIT",
   "repository": {
