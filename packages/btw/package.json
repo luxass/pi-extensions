@@ -5,6 +5,7 @@
   "keywords": [
     "pi-package"
   ],
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/luxass/pi-extensions",
@@ -12,7 +13,8 @@
   },
   "files": [
     "src",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "type": "module",
   "publishConfig": {
