@@ -1,6 +1,6 @@
 {
   "name": "@luxass/pi-whimsical",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Replace Pi's working message with rotating coding jokes, fantasy, memes, and Star Wars references.",
   "keywords": [
     "humor",
