@@ -9,7 +9,7 @@ strictDepBuilds: true
 blockExoticSubdeps: true
 
 minimumReleaseAgeExclude:
-  - "@luxass/agent-voice@0.3.0"
+  - "@luxass/agent-voice@0.4.0"
 
 catalogs:
   types:
@@ -23,7 +23,7 @@ catalogs:
     "@earendil-works/pi-tui": 0.87.0
 
   agent:
-    "@luxass/agent-voice": 0.3.0
+    "@luxass/agent-voice": 0.4.0
 
   dev:
     "@changesets/changelog-github": 1.0.1

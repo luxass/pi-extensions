@@ -9,19 +9,22 @@ import { Key } from "@earendil-works/pi-tui";
 import {
   createRecorder,
   getActiveProfile,
-  listInputDevices,
   loadVoiceSettings,
   runDoctor,
   saveVoiceSettings,
   transcribe,
+  type DoctorCheck,
   type DoctorCheckId,
+  type VoiceSettings,
 } from "@luxass/agent-voice";
 
 import { pickLocalModel, promptProfile } from "./profile";
+import { promptInputDevice, promptSetup } from "./setup";
 
 const SUBCOMMANDS = [
   { value: "record", description: "start/stop recording, transcribe on stop" },
   { value: "cancel", description: "discard the in-progress recording" },
+  { value: "setup", description: "configure transcription and input, then check requirements" },
   { value: "device", description: "select input device" },
   { value: "profile", description: "select transcription profile" },
   { value: "profile add", description: "create a transcription profile" },
@@ -35,51 +38,119 @@ const DOCTOR_FIXES: Partial<Record<DoctorCheckId, string>> = {
   model: "run /voice profile model",
 };
 
+function formatChecks(checks: DoctorCheck[]): string {
+  return checks
+    .map(({ id, ok, detail, fix }) =>
+      ok ? `✓ ${id}: ${detail}` : `✗ ${id}: ${detail} → ${DOCTOR_FIXES[id] ?? fix}`,
+    )
+    .join("\n");
+}
+
+function statusText(settings: VoiceSettings, state = "idle"): string {
+  const { name, transcription } = getActiveProfile(settings);
+  const model =
+    transcription.type === "api"
+      ? transcription.model
+      : basename(transcription.model ?? "auto model", ".bin");
+  return `voice ${state} · ${name} · ${model} · ${settings.inputDevice?.name ?? "system default"}`;
+}
+
 export default function voice(pi: ExtensionAPI) {
   const path = process.env.AGENT_VOICE_SETTINGS ?? join(getAgentDir(), "voice-settings.json");
-  const settings = loadVoiceSettings(path);
+  let configuration = loadVoiceSettings(path);
   const recorder = createRecorder();
+  let recording: VoiceSettings | undefined;
 
-  function statusText(state = recorder.isRecording ? "● recording" : "ready"): string {
-    const { name, transcription } = getActiveProfile(settings);
-    const model =
-      transcription.type === "api"
-        ? transcription.model
-        : basename(transcription.model ?? "auto model", ".bin");
-    return `voice ${state} · ${name} · ${model} · ${settings.inputDevice?.name ?? "system default"}`;
+  function setupMessage(): string {
+    return [
+      "Voice needs setup. Run /voice setup.",
+      ...configuration.errors.map(({ path, message }) => `${path}: ${message}`),
+    ].join("\n");
   }
 
-  function showStatus(ui: ExtensionContext["ui"], state?: string): void {
-    ui.setStatus("voice", statusText(state));
+  function save(settings: VoiceSettings): void {
+    saveVoiceSettings(path, settings);
+    configuration = { settings, errors: [] };
   }
 
-  // Errors thrown from command and shortcut handlers are reported by Pi.
-  async function toggle(ctx: ExtensionContext): Promise<void> {
-    if (!recorder.isRecording) {
-      recorder.start(settings.inputDevice, (error) => {
-        showStatus(ctx.ui);
-        ctx.ui.notify(`Recording failed: ${error.message}`, "error");
-      });
-      showStatus(ctx.ui);
-      ctx.ui.notify(
-        `Recording from ${settings.inputDevice?.name ?? "system default"}… run again to transcribe`,
-      );
+  function showStatus(ui: ExtensionContext["ui"], settings: VoiceSettings, state?: string): void {
+    ui.setStatus("voice", statusText(settings, state ?? (recording ? "● recording" : "idle")));
+  }
+
+  async function setup(ctx: ExtensionContext): Promise<void> {
+    if (!ctx.hasUI) {
+      ctx.ui.notify("Run /voice setup in an interactive Pi session", "info");
+      return;
+    }
+    if (recording) {
+      ctx.ui.notify("Stop recording before running setup", "warning");
       return;
     }
 
-    showStatus(ctx.ui, "transcribing…");
-    try {
-      const file = await recorder.stop();
-      try {
-        const text = await transcribe(file, getActiveProfile(settings).transcription);
-        ctx.ui.pasteToEditor(text);
-        ctx.ui.notify("Transcription pasted into the composer", "info");
-      } finally {
-        recorder.discard(file);
-      }
-    } finally {
-      showStatus(ctx.ui);
+    const draft = await promptSetup(ctx.ui, configuration.settings);
+    if (draft == null) return;
+    const checks = await runDoctor(draft);
+    save(draft);
+    const ready = checks.every(({ ok }) => ok);
+    showStatus(ctx.ui, draft, ready ? "ready" : "needs setup");
+    ctx.ui.notify(
+      ready
+        ? "Voice is ready. Press Ctrl+Shift+V or run /voice to record."
+        : `Voice profile saved. Finish these requirements before recording:\n${formatChecks(checks.filter(({ ok }) => !ok))}`,
+      ready ? "info" : "warning",
+    );
+  }
+
+  async function offerSetup(ctx: ExtensionContext, message: string): Promise<void> {
+    ctx.ui.notify(message, configuration.errors.length > 0 ? "warning" : "info");
+    if (ctx.hasUI && (await ctx.ui.confirm("Voice needs setup", "Open voice setup now?"))) {
+      await setup(ctx);
     }
+  }
+
+  // Pi reports recording, transcription and save errors from these handlers.
+  async function toggle(ctx: ExtensionContext): Promise<void> {
+    if (recording) {
+      const active = recording;
+      showStatus(ctx.ui, active, "transcribing…");
+      try {
+        const file = await recorder.stop();
+        try {
+          const text = await transcribe(file, getActiveProfile(active).transcription);
+          ctx.ui.pasteToEditor(text);
+          ctx.ui.notify("Transcription pasted into the composer", "info");
+        } finally {
+          recorder.discard(file);
+        }
+      } finally {
+        recording = undefined;
+        showStatus(ctx.ui, active);
+      }
+      return;
+    }
+
+    const { settings } = configuration;
+    if (!settings) {
+      await offerSetup(ctx, setupMessage());
+      return;
+    }
+    const checks = await runDoctor(settings);
+    if (checks.some(({ ok }) => !ok)) {
+      await offerSetup(ctx, formatChecks(checks.filter(({ ok }) => !ok)));
+      return;
+    }
+
+    const active = structuredClone(settings);
+    recorder.start(active.inputDevice, (error) => {
+      recording = undefined;
+      showStatus(ctx.ui, active);
+      ctx.ui.notify(`Recording failed: ${error.message}`, "error");
+    });
+    recording = active;
+    showStatus(ctx.ui, active);
+    ctx.ui.notify(
+      `Recording from ${active.inputDevice?.name ?? "system default"}… run again to transcribe`,
+    );
   }
 
   pi.registerShortcut(Key.ctrlShift("v"), {
@@ -96,63 +167,68 @@ export default function voice(pi: ExtensionAPI) {
       return items.length > 0 ? items : null;
     },
     handler: async (args, ctx) => {
-      switch (args.trim().replaceAll(/\s+/gu, " ")) {
+      const command = args.trim().replaceAll(/\s+/gu, " ");
+      switch (command) {
         case "":
         case "record": {
           await toggle(ctx);
           return;
         }
-
         case "cancel": {
-          if (!recorder.isRecording) return;
+          if (!recording) return;
+          const active = recording;
           recorder.cancel();
-          showStatus(ctx.ui);
+          recording = undefined;
+          showStatus(ctx.ui, active);
           ctx.ui.notify("Recording discarded");
           return;
         }
+        case "setup": {
+          await setup(ctx);
+          return;
+        }
+      }
 
+      const { settings } = configuration;
+      if (!settings) {
+        ctx.ui.notify(setupMessage(), configuration.errors.length > 0 ? "warning" : "info");
+        return;
+      }
+      switch (command) {
         case "device": {
-          if (recorder.isRecording) {
+          if (recording) {
             ctx.ui.notify("Stop recording before changing the input", "warning");
             return;
           }
-          const devices = await listInputDevices();
-          const selected = await ctx.ui.select("Voice input device", [
-            "System default",
-            ...devices.map((device) => device.name),
-          ]);
+          const selected = await promptInputDevice(ctx.ui, settings.inputDevice);
           if (selected == null) return;
-          settings.inputDevice = devices.find((device) => device.name === selected);
-          saveVoiceSettings(path, settings);
-          showStatus(ctx.ui);
-          ctx.ui.notify(`Voice input: ${selected}`);
+          settings.inputDevice = selected.inputDevice;
+          save(settings);
+          showStatus(ctx.ui, settings);
+          ctx.ui.notify(`Voice input: ${selected.inputDevice?.name ?? "system default"}`);
           return;
         }
 
         case "profile": {
-          if (!settings.profiles) {
-            ctx.ui.notify("No profiles yet; run /voice profile add", "warning");
-            return;
-          }
           const selected = await ctx.ui.select(
             "Voice transcription profile",
             Object.keys(settings.profiles),
           );
           if (selected == null) return;
           settings.activeProfile = selected;
-          saveVoiceSettings(path, settings);
-          showStatus(ctx.ui);
+          save(settings);
+          showStatus(ctx.ui, settings);
           ctx.ui.notify(`Voice profile: ${selected}`);
           return;
         }
 
         case "profile add": {
-          const added = await promptProfile(ctx.ui, Object.keys(settings.profiles ?? {}));
+          const added = await promptProfile(ctx.ui, Object.keys(settings.profiles));
           if (!added) return;
           settings.profiles = { ...settings.profiles, [added.name]: added.profile };
           settings.activeProfile = added.name;
-          saveVoiceSettings(path, settings);
-          showStatus(ctx.ui);
+          save(settings);
+          showStatus(ctx.ui, settings);
           ctx.ui.notify(`Voice profile: ${added.name}`);
           return;
         }
@@ -165,26 +241,20 @@ export default function voice(pi: ExtensionAPI) {
               : await pickLocalModel(ctx.ui);
           if (!model) return;
           transcription.model = model;
-          // Without saved profiles the active profile is implicit; save it to keep the model.
-          settings.profiles ??= { [name]: transcription };
-          settings.activeProfile = name;
-          saveVoiceSettings(path, settings);
-          showStatus(ctx.ui);
+          save(settings);
+          showStatus(ctx.ui, settings);
           ctx.ui.notify(`Voice profile ${name}: ${model}`);
           return;
         }
 
         case "doctor": {
           const checks = await runDoctor(settings);
-          const lines = checks.map(({ id, ok, detail, fix }) =>
-            ok ? `✓ ${id}: ${detail}` : `✗ ${id}: ${detail} → ${DOCTOR_FIXES[id] ?? fix}`,
-          );
-          ctx.ui.notify(lines.join("\n"), checks.every(({ ok }) => ok) ? "info" : "warning");
+          ctx.ui.notify(formatChecks(checks), checks.every(({ ok }) => ok) ? "info" : "warning");
           return;
         }
 
         case "status": {
-          ctx.ui.notify(statusText());
+          ctx.ui.notify(statusText(recording ?? settings, recording ? "● recording" : "idle"));
           return;
         }
 
@@ -199,10 +269,14 @@ export default function voice(pi: ExtensionAPI) {
   });
 
   pi.on("session_start", (_event, ctx) => {
-    showStatus(ctx.ui);
+    const { settings } = configuration;
+    if (settings) showStatus(ctx.ui, settings);
+    else ctx.ui.setStatus("voice", "voice needs setup · /voice setup");
+    if (configuration.errors.length > 0) ctx.ui.notify(setupMessage(), "warning");
   });
 
   pi.on("session_shutdown", () => {
     recorder.cancel();
+    recording = undefined;
   });
 }
