@@ -3,7 +3,9 @@ import { listInputDevices, type InputDevice, type VoiceSettings } from "@luxass/
 
 import { promptProfile } from "./profile";
 
-/** An undefined result means cancellation, not selection of the system default. */
+/**
+ * An undefined result means cancellation, not selection of the system default.
+ */
 export async function promptInputDevice(
   ui: ExtensionUIContext,
   current?: InputDevice,
@@ -21,13 +23,15 @@ export async function promptInputDevice(
   const devices = await listInputDevices();
   const picked = await ui.select(
     "Voice input device",
-    devices.map((device) => device.name),
+    devices.map(({ name, id }) => `${name} · ${id}`),
   );
-  const inputDevice = devices.find((device) => device.name === picked);
+  const inputDevice = devices.find(({ name, id }) => `${name} · ${id}` === picked);
   return inputDevice == null ? undefined : { inputDevice };
 }
 
-/** Collect a setup draft. The caller checks and saves it only after every dialog completes. */
+/**
+ * Collect a setup draft. The caller checks and saves it after every dialog completes.
+ */
 export async function promptSetup(
   ui: ExtensionUIContext,
   settings?: VoiceSettings,

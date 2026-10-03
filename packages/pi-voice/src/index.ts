@@ -15,6 +15,7 @@ import {
   transcribe,
   type DoctorCheck,
   type DoctorCheckId,
+  type Recorder,
   type VoiceSettings,
 } from "@luxass/agent-voice";
 
@@ -51,15 +52,16 @@ function statusText(settings: VoiceSettings, state = "idle"): string {
   const model =
     transcription.type === "api"
       ? transcription.model
-      : basename(transcription.model ?? "auto model", ".bin");
+      : basename(transcription.model ?? "auto model", ".gguf");
   return `voice ${state} · ${name} · ${model} · ${settings.inputDevice?.name ?? "system default"}`;
 }
 
 export default function voice(pi: ExtensionAPI) {
   const path = process.env.AGENT_VOICE_SETTINGS ?? join(getAgentDir(), "voice-settings.json");
   let configuration = loadVoiceSettings(path);
-  const recorder = createRecorder();
-  let recording: VoiceSettings | undefined;
+  let recorder: Recorder | undefined;
+  let recording: { settings: VoiceSettings; recorder: Recorder } | undefined;
+  let busy = false;
 
   function setupMessage(): string {
     return [
@@ -110,47 +112,63 @@ export default function voice(pi: ExtensionAPI) {
 
   // Pi reports recording, transcription and save errors from these handlers.
   async function toggle(ctx: ExtensionContext): Promise<void> {
-    if (recording) {
-      const active = recording;
-      showStatus(ctx.ui, active, "transcribing…");
-      try {
-        const file = await recorder.stop();
+    if (busy) return;
+    busy = true;
+    try {
+      if (recording) {
+        const active = recording;
+        recording = undefined;
+        showStatus(ctx.ui, active.settings, "transcribing…");
         try {
-          const text = await transcribe(file, getActiveProfile(active).transcription);
+          const audio = await active.recorder.stop();
+          const text = await transcribe(audio, getActiveProfile(active.settings).transcription);
           ctx.ui.pasteToEditor(text);
           ctx.ui.notify("Transcription pasted into the composer", "info");
         } finally {
-          recorder.discard(file);
+          showStatus(ctx.ui, active.settings);
         }
-      } finally {
-        recording = undefined;
-        showStatus(ctx.ui, active);
+        return;
       }
-      return;
-    }
 
-    const { settings } = configuration;
-    if (!settings) {
-      await offerSetup(ctx, setupMessage());
-      return;
-    }
-    const checks = await runDoctor(settings);
-    if (checks.some(({ ok }) => !ok)) {
-      await offerSetup(ctx, formatChecks(checks.filter(({ ok }) => !ok)));
-      return;
-    }
+      const { settings } = configuration;
+      if (!settings) {
+        await offerSetup(ctx, setupMessage());
+        return;
+      }
+      const checks = await runDoctor(settings);
+      if (checks.some(({ ok }) => !ok)) {
+        await offerSetup(ctx, formatChecks(checks.filter(({ ok }) => !ok)));
+        return;
+      }
 
-    const active = structuredClone(settings);
-    recorder.start(active.inputDevice, (error) => {
-      recording = undefined;
-      showStatus(ctx.ui, active);
-      ctx.ui.notify(`Recording failed: ${error.message}`, "error");
-    });
-    recording = active;
-    showStatus(ctx.ui, active);
-    ctx.ui.notify(
-      `Recording from ${active.inputDevice?.name ?? "system default"}… run again to transcribe`,
-    );
+      const active = {
+        settings: structuredClone(settings),
+        recorder: (recorder ??= await createRecorder()),
+      };
+      recording = active;
+      showStatus(ctx.ui, active.settings, "starting…");
+      try {
+        await active.recorder.start({
+          input: active.settings.inputDevice,
+          onError: (error) => {
+            recording = undefined;
+            showStatus(ctx.ui, active.settings);
+            ctx.ui.notify(`Recording failed: ${error.message}`, "error");
+          },
+        });
+      } catch (error) {
+        recording = undefined;
+        showStatus(ctx.ui, active.settings);
+        throw error;
+      }
+      if (!active.recorder.isRecording) return;
+      showStatus(ctx.ui, active.settings);
+      ctx.ui.notify(
+        `Recording from ${active.settings.inputDevice?.name ?? "system default"}… run again to transcribe`,
+      );
+    } finally {
+      busy = false;
+    }
   }
 
   pi.registerShortcut(Key.ctrlShift("v"), {
@@ -177,9 +195,9 @@ export default function voice(pi: ExtensionAPI) {
         case "cancel": {
           if (!recording) return;
           const active = recording;
-          recorder.cancel();
           recording = undefined;
-          showStatus(ctx.ui, active);
+          await active.recorder.cancel();
+          showStatus(ctx.ui, active.settings);
           ctx.ui.notify("Recording discarded");
           return;
         }
@@ -254,7 +272,9 @@ export default function voice(pi: ExtensionAPI) {
         }
 
         case "status": {
-          ctx.ui.notify(statusText(recording ?? settings, recording ? "● recording" : "idle"));
+          ctx.ui.notify(
+            statusText(recording?.settings ?? settings, recording ? "● recording" : "idle"),
+          );
           return;
         }
 
@@ -269,14 +289,18 @@ export default function voice(pi: ExtensionAPI) {
   });
 
   pi.on("session_start", (_event, ctx) => {
-    const { settings } = configuration;
-    if (settings) showStatus(ctx.ui, settings);
-    else ctx.ui.setStatus("voice", "voice needs setup · /voice setup");
-    if (configuration.errors.length > 0) ctx.ui.notify(setupMessage(), "warning");
+    const { settings, errors } = configuration;
+    if (settings) {
+      showStatus(ctx.ui, settings);
+    } else {
+      ctx.ui.setStatus("voice", "[voice] needs setup · /voice setup");
+    }
+
+    if (errors.length > 0) ctx.ui.notify(setupMessage(), "warning");
   });
 
-  pi.on("session_shutdown", () => {
-    recorder.cancel();
+  pi.on("session_shutdown", async () => {
     recording = undefined;
+    await recorder?.cancel();
   });
 }

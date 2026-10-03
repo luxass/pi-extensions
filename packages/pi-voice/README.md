@@ -8,7 +8,7 @@ Record speech and paste the transcription into [Pi](https://github.com/badlogic/
 pi install npm:@luxass/pi-voice
 ```
 
-Recording requires `sox` on your `PATH`. Run `/voice setup` to choose a local or API transcription profile and an input device. Local transcription also needs `whisper-cli`; the model picker can download a Whisper model. API transcription does not require a local Whisper installation. Setup reports any remaining requirements without installing system packages.
+Requires Node.js 24+ and microphone access. Linux also needs `libasound.so.2`. Run `/voice setup` to choose a local or API transcription profile and an input device. Local transcription uses GGUF models; the model picker can download Whisper or Parakeet models.
 
 ## Use
 
@@ -26,6 +26,6 @@ Press **Ctrl+Shift+V** or run `/voice` to start recording. Requirements are chec
 | `/voice status`        | Show the current profile and input device.           |
 | `/voice doctor`        | Check recording and transcription setup.             |
 
-Without saved settings, Voice offers setup. A local profile without an explicit model uses the first model in `~/.cache/whisper`. Set `AGENT_VOICE_MODEL_DIR` to keep models elsewhere; downloads and discovery both use it. For API transcription, `/voice profile add` asks for the endpoint, model, request format, and **name of an environment variable** holding the API key. Keep the key in your environment, not in the settings file.
+A local profile without an explicit model uses the first GGUF model in `~/.cache/agent-voice`. Set `AGENT_VOICE_MODEL_DIR` to keep models elsewhere. For API transcription, `/voice profile add` asks for the endpoint, model, request format, and **name of an environment variable** holding the API key. Keep the key in your environment, not in the settings file.
 
 Settings are loaded once at boot from Pi's agent directory, using `voice-settings.json`. Set `AGENT_VOICE_SETTINGS` to use a different file. TypeBox validates known fields, while extra keys are accepted without warnings. If the file is missing, Voice shows a setup hint. If it cannot be loaded or validated, Voice shows the errors and keeps `/voice setup` available. Loading never rewrites the file. Setup saves a complete configuration and updates it in memory; manual file edits require `/reload`. A recording keeps the profile it started with.

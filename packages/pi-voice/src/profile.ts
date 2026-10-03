@@ -24,11 +24,13 @@ function download(ui: ExtensionUIContext, name: string): Promise<string> {
   });
 }
 
-/** Pick an installed model, or one from the curated list, which is downloaded right away. */
+/**
+ * Pick an installed GGUF model or download one from the catalog.
+ */
 export async function pickLocalModel(ui: ExtensionUIContext): Promise<string | undefined> {
   const models = listLocalModels();
   const picked = await ui.select(
-    "Whisper model",
+    "Local GGUF model",
     models.map((model) => label(model)),
   );
   const model = models.find((candidate) => label(candidate) === picked);
@@ -64,7 +66,9 @@ async function promptApi(ui: ExtensionUIContext): Promise<TranscriptionProfile |
   };
 }
 
-/** Ask for a profile name and its transcription settings. Returns undefined when the user backs out. */
+/**
+ * Ask for a profile name and transcription settings. Cancellation returns undefined.
+ */
 export async function promptProfile(
   ui: ExtensionUIContext,
   existing: readonly string[],
