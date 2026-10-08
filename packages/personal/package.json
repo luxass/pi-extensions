@@ -1,0 +1,44 @@
+{
+  "name": "@luxass/pi-personal",
+  "version": "0.0.0",
+  "description": "Personal Pi extensions collected in one package, tuned to a single workflow.",
+  "keywords": [
+    "personal",
+    "pi",
+    "pi-extension",
+    "pi-package"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/luxass/pi-extensions",
+    "directory": "packages/personal"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "lint": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix --deny-warnings .",
+    "fmt": "oxfmt .",
+    "fmt:check": "oxfmt --check .",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "pi": {
+    "image": "https://raw.githubusercontent.com/luxass/pi-extensions/main/packages/personal/docs/cover.png",
+    "extensions": [
+      "./src/index.ts"
+    ]
+  }
+}

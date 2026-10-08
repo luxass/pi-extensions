@@ -5,6 +5,7 @@ Extensions for [Pi](https://pi.dev), published as separate npm packages.
 | Package                | What it does                                                                            | Documentation                             |
 | ---------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------- |
 | `@luxass/pi-btw`       | Ask side questions in a popover, then optionally send a summary to the main chat.       | [btw](packages/btw/README.md)             |
+| `@luxass/pi-personal`  | Load defaults and extensions tuned to a single personal workflow.                       | [personal](packages/personal/README.md)   |
 | `@luxass/pi-voice`     | Record speech, transcribe it locally or through an API, and paste it into the composer. | [Voice](packages/pi-voice/README.md)      |
 | `@luxass/pi-whimsical` | Display playful working messages while the agent runs.                                  | [Whimsical](packages/whimsical/README.md) |
 
@@ -14,11 +15,12 @@ Install whichever extensions you want:
 
 ```sh
 pi install npm:@luxass/pi-btw
+pi install npm:@luxass/pi-personal
 pi install npm:@luxass/pi-voice
 pi install npm:@luxass/pi-whimsical
 ```
 
-Use `/btw` for side questions, and `/voice` or **Ctrl+Shift+V** for recording. Whimsical works automatically.
+Use `/btw` for side questions, and `/voice` or **Ctrl+Shift+V** for recording. Whimsical and personal load automatically.
 
 Voice recording requires `sox`. Local transcription also requires `whisper-cli` and a Whisper model. API transcription does not require Whisper. Run `/voice doctor` to check your setup.
 
@@ -52,7 +54,7 @@ Each extension in this repository already has:
 
 Publish each extension as its own npm package through the existing Changesets release workflow. The private repository-root package is not published. The keyword makes a published package eligible for gallery discovery; it does not guarantee immediate indexing. No separate submission step is documented.
 
-Optional `pi.image` and `pi.video` fields add gallery previews. Add real preview assets when available rather than placeholder URLs.
+Optional `pi.image` and `pi.video` fields add gallery previews. Each package sets `pi.image` to a generated PNG cover committed under `packages/*/docs/`. Run `pnpm covers` to regenerate them, and push the result to `main` so the raw GitHub URLs resolve. `pi.video` can add a video preview.
 
 ## License
 

@@ -1,5 +1,6 @@
 import { CoverLayout } from "./components/CoverLayout.tsx";
 import { Cursor } from "./components/Cursor.tsx";
+import { Dot } from "./components/Dot.tsx";
 import { Panel } from "./components/Panel.tsx";
 import { Text } from "./components/Text.tsx";
 import { Waveform } from "./components/Waveform.tsx";
@@ -21,7 +22,10 @@ export function VoiceCover() {
     <CoverLayout {...metadata}>
       <div style={{ display: "flex", flexDirection: "column", padding: "0 36px", gap: 20 }}>
         <Text value="/voice" size={13} fill={accent} />
-        <Text value="● capture an idea → turn it into text" size={15} fill={muted} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Dot color={accent} />
+          <Text value="capture an idea → turn it into text" size={15} fill={muted} />
+        </div>
         <Waveform heights={heights} color={accent} />
         <Panel style={{ padding: "16px 22px", gap: 16 }}>
           <Text value="COMPOSER" size={11} fill={muted} />
