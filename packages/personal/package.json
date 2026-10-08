@@ -5,7 +5,6 @@
   "keywords": [
     "personal",
     "pi",
-    "pi-extension",
     "pi-package"
   ],
   "license": "MIT",
@@ -38,7 +37,12 @@
   "pi": {
     "image": "https://raw.githubusercontent.com/luxass/pi-extensions/main/packages/personal/docs/cover.png",
     "extensions": [
-      "./src/index.ts"
+      "./src/continue-after-compaction.ts",
+      "./src/git-interceptor.ts",
+      "./src/package-manager-interceptor.ts",
+      "./src/worker-configuration-guard.ts",
+      "./src/custom-header.ts",
+      "./src/crow/index.ts"
     ]
   }
 }
