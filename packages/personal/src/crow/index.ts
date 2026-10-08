@@ -190,7 +190,7 @@ function getCompatCoordinator() {
 	if (!globalState[COMPAT_COORDINATOR_KEY]) {
 		globalState[COMPAT_COORDINATOR_KEY] = { stack: [] };
 	}
-	return globalState[COMPAT_COORDINATOR_KEY]!;
+	return globalState[COMPAT_COORDINATOR_KEY];
 }
 
 export function resetCompatCoordinator(): void {
@@ -658,8 +658,8 @@ export default async function crow(pi: ExtensionAPI): Promise<void> {
 			registerApiProvider(
 				{
 					api: CLIPROXYAPI_CODEX_API,
-					stream: dispatchStream as StreamFunction<typeof CLIPROXYAPI_CODEX_API>,
-					streamSimple: dispatchStreamSimple as StreamFunction<typeof CLIPROXYAPI_CODEX_API, SimpleStreamOptions>,
+					stream: dispatchStream,
+					streamSimple: dispatchStreamSimple,
 				},
 				COMPAT_SOURCE_ID,
 			);

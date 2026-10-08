@@ -15,10 +15,10 @@ import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 const PROTECTED_FILE = "worker-configuration.d.ts";
 
 const BLOCK_REASON =
-	`BLOCKED: ${PROTECTED_FILE} is generated and must not be manually ` +
-	"created, edited, deleted, or overwritten by an agent. Use the `read` tool " +
-	"to inspect it, or run `wrangler types` from the worker project to " +
-	"regenerate it instead.";
+  `BLOCKED: ${PROTECTED_FILE} is generated and must not be manually ` +
+  "created, edited, deleted, or overwritten by an agent. Use the `read` tool " +
+  "to inspect it, or run `wrangler types` from the worker project to " +
+  "regenerate it instead.";
 
 const SHELL_COMMAND_SEPARATOR_RE = /(?:&&|\|\||[;|\n])/;
 const SHELL_OUTPUT_REDIRECTION_RE = /^\d*>>?$/;
@@ -27,164 +27,168 @@ const SHELL_COPY_COMMANDS = new Set(["cp", "install", "mv", "rsync"]);
 
 /** Definite shell mutation categories recognized by the worker configuration guard. */
 export type WorkerConfigurationMutation =
-	| "copy-destination"
-	| "direct-file-command"
-	| "in-place-edit"
-	| "output-redirection";
+  | "copy-destination"
+  | "direct-file-command"
+  | "in-place-edit"
+  | "output-redirection";
 
 function normalizeToolPath(path: string): string {
-	return path.replace(/^@/, "").replaceAll("\\", "/");
+  return path.replace(/^@/, "").replaceAll("\\", "/");
 }
 
 function isProtectedPath(path: unknown): boolean {
-	if (typeof path !== "string") return false;
-	const normalized = normalizeToolPath(path);
-	return normalized.split("/").at(-1) === PROTECTED_FILE;
+  if (typeof path !== "string") return false;
+  const normalized = normalizeToolPath(path);
+  return normalized.split("/").at(-1) === PROTECTED_FILE;
 }
 
 function tokenizeShellCommand(command: string): string[] {
-	const tokens: string[] = [];
-	let token = "";
-	let quote: "'" | '"' | undefined;
+  const tokens: string[] = [];
+  let token = "";
+  let quote: "'" | '"' | undefined;
 
-	const pushToken = () => {
-		if (token.length === 0) return;
-		tokens.push(token);
-		token = "";
-	};
+  const pushToken = () => {
+    if (token.length === 0) return;
+    tokens.push(token);
+    token = "";
+  };
 
-	for (let index = 0; index < command.length; index += 1) {
-		const character = command[index];
-		if (character === undefined) continue;
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index];
+    if (character === undefined) continue;
 
-		if (quote !== undefined) {
-			if (character === quote) quote = undefined;
-			else token += character;
-			continue;
-		}
+    if (quote !== undefined) {
+      if (character === quote) quote = undefined;
+      else token += character;
+      continue;
+    }
 
-		if (character === "'" || character === '"') {
-			quote = character;
-			continue;
-		}
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
 
-		if (character === "\\" && command[index + 1] !== undefined) {
-			token += command[index + 1];
-			index += 1;
-			continue;
-		}
+    if (character === "\\" && command[index + 1] !== undefined) {
+      token += command[index + 1];
+      index += 1;
+      continue;
+    }
 
-		if (/\s/.test(character)) {
-			pushToken();
-			if (character === "\n") tokens.push(character);
-			continue;
-		}
+    if (/\s/.test(character)) {
+      pushToken();
+      if (character === "\n") tokens.push(character);
+      continue;
+    }
 
-		if (/[;&|<>]/.test(character)) {
-			pushToken();
-			const pair = character + (command[index + 1] ?? "");
-			if (["&&", "||", ">>", "<<"].includes(pair)) {
-				tokens.push(pair);
-				index += 1;
-			} else {
-				tokens.push(character);
-			}
-			continue;
-		}
+    if (/[;&|<>]/.test(character)) {
+      pushToken();
+      const pair = character + (command[index + 1] ?? "");
+      if (["&&", "||", ">>", "<<"].includes(pair)) {
+        tokens.push(pair);
+        index += 1;
+      } else {
+        tokens.push(character);
+      }
+      continue;
+    }
 
-		token += character;
-	}
+    token += character;
+  }
 
-	pushToken();
-	return tokens;
+  pushToken();
+  return tokens;
 }
 
 function splitShellCommandSegments(tokens: readonly string[]): string[][] {
-	const segments: string[][] = [[]];
-	for (const token of tokens) {
-		if (SHELL_COMMAND_SEPARATOR_RE.test(token)) segments.push([]);
-		else segments.at(-1)?.push(token);
-	}
-	return segments;
+  const segments: string[][] = [[]];
+  for (const token of tokens) {
+    if (SHELL_COMMAND_SEPARATOR_RE.test(token)) segments.push([]);
+    else segments.at(-1)?.push(token);
+  }
+  return segments;
 }
 
 function shellCommandName(segment: readonly string[]): string | undefined {
-	return segment.find((token) => !token.includes("=") && !token.startsWith("-"));
+  return segment.find((token) => !token.includes("=") && !token.startsWith("-"));
 }
 
 /** Finds a definite shell mutation targeting Wrangler's generated worker configuration file. */
 export function findWorkerConfigurationMutation(
-	command: string,
+  command: string,
 ): WorkerConfigurationMutation | undefined {
-	const segments = splitShellCommandSegments(tokenizeShellCommand(command));
+  const segments = splitShellCommandSegments(tokenizeShellCommand(command));
 
-	for (const segment of segments) {
-		for (let index = 0; index < segment.length - 1; index += 1) {
-			if (
-				SHELL_OUTPUT_REDIRECTION_RE.test(segment[index] ?? "") &&
-				isProtectedPath(segment[index + 1])
-			) {
-				return "output-redirection";
-			}
-		}
+  for (const segment of segments) {
+    for (let index = 0; index < segment.length - 1; index += 1) {
+      if (
+        SHELL_OUTPUT_REDIRECTION_RE.test(segment[index] ?? "") &&
+        isProtectedPath(segment[index + 1])
+      ) {
+        return "output-redirection";
+      }
+    }
 
-		const commandName = shellCommandName(segment);
-		if (commandName === undefined) continue;
-		const operands = segment.slice(segment.indexOf(commandName) + 1);
+    const commandName = shellCommandName(segment);
+    if (commandName === undefined) continue;
+    const operands = segment.slice(segment.indexOf(commandName) + 1);
 
-		if (
-			SHELL_DIRECT_MUTATION_COMMANDS.has(commandName) &&
-			operands.some(isProtectedPath)
-		) {
-			return "direct-file-command";
-		}
+    if (SHELL_DIRECT_MUTATION_COMMANDS.has(commandName) && operands.some(isProtectedPath)) {
+      return "direct-file-command";
+    }
 
-		if (
-			(commandName === "sed" || commandName === "perl") &&
-			operands.some(
-				(operand) =>
-					operand === "-i" || operand.startsWith("-i") || operand.startsWith("--in-place"),
-			) &&
-			operands.some(isProtectedPath)
-		) {
-			return "in-place-edit";
-		}
+    if (
+      (commandName === "sed" || commandName === "perl") &&
+      operands.some(
+        (operand) =>
+          operand === "-i" || operand.startsWith("-i") || operand.startsWith("--in-place"),
+      ) &&
+      operands.some(isProtectedPath)
+    ) {
+      return "in-place-edit";
+    }
 
-		if (SHELL_COPY_COMMANDS.has(commandName)) {
-			const paths = operands.filter((operand) => !operand.startsWith("-"));
-			if (isProtectedPath(paths.at(-1))) return "copy-destination";
-		}
+    if (SHELL_COPY_COMMANDS.has(commandName)) {
+      const paths = operands.filter((operand) => !operand.startsWith("-"));
+      if (isProtectedPath(paths.at(-1))) return "copy-destination";
+    }
 
-		if (
-			commandName === "dd" &&
-			operands.some((operand) => operand.startsWith("of=") && isProtectedPath(operand.slice(3)))
-		) {
-			return "direct-file-command";
-		}
-	}
+    if (
+      commandName === "dd" &&
+      operands.some((operand) => operand.startsWith("of=") && isProtectedPath(operand.slice(3)))
+    ) {
+      return "direct-file-command";
+    }
+  }
 
-	return undefined;
+  return undefined;
 }
 
 export default function (pi: ExtensionAPI) {
-	pi.on("tool_call", (event, ctx) => {
-		if (isToolCallEventType("write", event) || isToolCallEventType("edit", event)) {
-			if (isProtectedPath(event.input.path)) {
-				if (ctx.hasUI) {
-					ctx.ui.notify(`Blocked manual change to ${PROTECTED_FILE}; run wrangler types.`, "warning");
-				}
-				return { block: true, reason: BLOCK_REASON };
-			}
+  pi.on("tool_call", (event, ctx) => {
+    if (isToolCallEventType("write", event) || isToolCallEventType("edit", event)) {
+      if (isProtectedPath(event.input.path)) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(
+            `Blocked manual change to ${PROTECTED_FILE}; run wrangler types.`,
+            "warning",
+          );
+        }
+        return { block: true, reason: BLOCK_REASON };
+      }
 
-			return;
-		}
+      // oxlint-disable-next-line typescript/consistent-return
+      return;
+    }
 
-		if (!isToolCallEventType("bash", event)) return;
-		if (findWorkerConfigurationMutation(event.input.command) === undefined) return;
+    // oxlint-disable-next-line typescript/consistent-return
+    if (!isToolCallEventType("bash", event)) return;
+    // oxlint-disable-next-line typescript/consistent-return
+    if (findWorkerConfigurationMutation(event.input.command) === undefined) return;
 
-		if (ctx.hasUI) {
-			ctx.ui.notify(`Blocked manual change to ${PROTECTED_FILE}; run wrangler types.`, "warning");
-		}
-		return { block: true, reason: BLOCK_REASON };
-	});
+    if (ctx.hasUI) {
+      ctx.ui.notify(`Blocked manual change to ${PROTECTED_FILE}; run wrangler types.`, "warning");
+    }
+
+    return { block: true, reason: BLOCK_REASON };
+  });
 }
