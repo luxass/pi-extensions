@@ -38,7 +38,7 @@ CI runs the same root lint, formatting, and typecheck commands. Checks do not fi
 - `oxfmt.config.ts` owns formatting and import sorting. Do not add competing formatting rules to Oxlint.
 - `pnpm-workspace.yaml` catalogs pin tool and Pi versions.
 
-Extensions publish TypeScript source, without a build step. The shared compiler settings use `Preserve` modules and `Bundler` resolution for Pi's TypeScript loader. Node types are explicit, and the standard library targets ES2022 rather than assuming a browser environment.
+Extensions publish TypeScript source, without a build step. The shared compiler settings use `Preserve` modules and `Bundler` resolution for Pi's TypeScript loader. Node types are explicit, and the standard library targets ES2023 to include non-mutating array APIs supported by Node.js 24, without assuming a browser environment.
 
 Keep `strict`, unchecked-index checks, override checks, and unused-code checks enabled. Unused callback parameters can use an underscore prefix. `exactOptionalPropertyTypes` is not enabled yet; adopting it needs a separate review of optional fields and dependency types.
 
@@ -75,6 +75,4 @@ Root typechecking executes `tsc` in every workspace package directly. A missing 
 
 ## Tests
 
-No test runner or package tests are configured yet. The existing `pnpm test` command only runs package test scripts when present, so it currently runs no tests. A passing `pnpm check` does not prove runtime behavior.
-
-The planned next step is shared Vitest configuration with package-owned tests. Include test files in typechecking, exclude live model calls and hardware requirements from CI, and test terminal-specific behavior manually.
+Don't write tests!

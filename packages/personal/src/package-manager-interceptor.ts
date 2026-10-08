@@ -8,17 +8,17 @@ const INSTALL =
 
 export default function (pi: ExtensionAPI) {
   pi.on("tool_call", (event) => {
-    if (!isToolCallEventType("bash", event)) return;
+    if (!isToolCallEventType("bash", event)) return undefined;
 
     const command = event.input.command;
     for (const match of command.matchAll(INSTALL)) {
       if (/\bsfw\s+$/.test(command.slice(0, match.index))) continue;
-      // oxlint-disable-next-line typescript/consistent-return
       return {
         block: true,
         reason:
           "Package installs must run through Socket Firewall. Retry with sfw before the package manager (for example, sfw pnpm install).",
       };
     }
+    return undefined;
   });
 }

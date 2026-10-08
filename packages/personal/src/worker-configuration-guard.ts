@@ -176,14 +176,11 @@ export default function (pi: ExtensionAPI) {
         return { block: true, reason: BLOCK_REASON };
       }
 
-      // oxlint-disable-next-line typescript/consistent-return
-      return;
+      return undefined;
     }
 
-    // oxlint-disable-next-line typescript/consistent-return
-    if (!isToolCallEventType("bash", event)) return;
-    // oxlint-disable-next-line typescript/consistent-return
-    if (findWorkerConfigurationMutation(event.input.command) === undefined) return;
+    if (!isToolCallEventType("bash", event)) return undefined;
+    if (findWorkerConfigurationMutation(event.input.command) === undefined) return undefined;
 
     if (ctx.hasUI) {
       ctx.ui.notify(`Blocked manual change to ${PROTECTED_FILE}; run wrangler types.`, "warning");
