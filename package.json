@@ -21,6 +21,7 @@
     "@earendil-works/pi-ai": "catalog:pi",
     "@earendil-works/pi-coding-agent": "catalog:pi",
     "@earendil-works/pi-tui": "catalog:pi",
+    "@resvg/resvg-js": "catalog:dev",
     "@types/node": "catalog:types",
     "@types/react": "catalog:types",
     "oxfmt": "catalog:dev",

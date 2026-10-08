@@ -36,6 +36,7 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "pi": {
+    "image": "https://raw.githubusercontent.com/luxass/pi-extensions/main/packages/whimsical/docs/cover.png",
     "extensions": [
       "./src/whimsical.ts"
     ]

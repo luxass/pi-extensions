@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
+import { Resvg } from "@resvg/resvg-js";
 import satori from "satori";
 
 import { BtwCover, metadata as btwMetadata } from "./BtwCover.tsx";
@@ -17,8 +18,9 @@ const covers = [
 
 for (const { metadata, element } of covers) {
   const svg = await satori(element, { width: 1280, height: 800, fonts });
-  const output = new URL(`../../../packages/${metadata.directory}/docs/cover.svg`, import.meta.url);
-  await mkdir(new URL(".", output), { recursive: true });
-  await writeFile(output, `${svg}\n`);
-  process.stdout.write(`Generated ${fileURLToPath(output)}\n`);
+  const docsDir = new URL(`../../../packages/${metadata.directory}/docs/`, import.meta.url);
+  const pngOutput = new URL("cover.png", docsDir);
+  await mkdir(docsDir, { recursive: true });
+  await writeFile(pngOutput, new Resvg(svg).render().asPng());
+  process.stdout.write(`Generated ${fileURLToPath(pngOutput)}\n`);
 }

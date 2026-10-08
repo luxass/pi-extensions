@@ -38,6 +38,7 @@
     "@earendil-works/pi-tui": "*"
   },
   "pi": {
+    "image": "https://raw.githubusercontent.com/luxass/pi-extensions/main/packages/btw/docs/cover.png",
     "extensions": [
       "./src/index.ts"
     ]

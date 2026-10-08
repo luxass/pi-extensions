@@ -46,6 +46,7 @@
     "node": ">=24"
   },
   "pi": {
+    "image": "https://raw.githubusercontent.com/luxass/pi-extensions/main/packages/pi-voice/docs/cover.png",
     "extensions": [
       "./src/index.ts"
     ]
