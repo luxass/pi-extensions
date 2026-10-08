@@ -1,5 +1,13 @@
 # @luxass/pi-whimsical
 
+## 0.1.2
+
+### Patch Changes
+
+- [`d360d67`](https://github.com/luxass/pi-extensions/commit/d360d677c4614dea806303bae5e5d91e577a2b98) Thanks [@luxass](https://github.com/luxass)! - Add PNG cover URLs to the Pi package gallery metadata.
+
+- [`ca0ca13`](https://github.com/luxass/pi-extensions/commit/ca0ca138db5cf0838d1ed548993f8320fe61da42) Thanks [@luxass](https://github.com/luxass)! - Update dependencies
+
 ## 0.1.1
 
 ### Patch Changes
