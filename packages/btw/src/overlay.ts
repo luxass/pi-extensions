@@ -12,7 +12,7 @@ import {
   type TUI,
 } from "@earendil-works/pi-tui";
 
-import { answerText, type BtwState, type ToolRow } from "./session";
+import { answerText, type BtwState, type ToolRow } from "./session.ts";
 
 const TOOL_ICONS = { running: "⚙", done: "✓", error: "✗" };
 const TOOL_COLORS = { running: "dim", done: "success", error: "error" } as const;
@@ -38,15 +38,32 @@ export function createOverlay({
 }: OverlayOptions): Component & Focusable {
   const input = new Input();
   let answers = new WeakMap<AssistantMessage, Markdown>();
-  // Lines scrolled up from the bottom; 0 follows new output.
-  let scroll = 0;
+  let scrollTop = 0;
+  let followEnd = true;
   let page = 1;
+  let lineCount = 0;
+  let thumbTop = 0;
+  let thumbHeight = 1;
+  let dragOffset: number | undefined;
+
+  function scrollTo(top: number): void {
+    const maxScroll = Math.max(0, lineCount - page);
+    scrollTop = Math.max(0, Math.min(maxScroll, top));
+    followEnd = scrollTop === maxScroll;
+    tui.requestRender();
+  }
+
+  function dragThumb(y: number, offset: number): void {
+    const track = page - thumbHeight;
+    const ratio = track > 0 ? (y - 1 - offset) / track : 0;
+    scrollTo(Math.round(ratio * Math.max(0, lineCount - page)));
+  }
 
   input.onSubmit = (value) => {
     const question = value.trim();
     if (!question || state.busy) return;
     input.setValue("");
-    scroll = 0;
+    followEnd = true;
     onAsk(question);
   };
 
@@ -111,15 +128,22 @@ export function createOverlay({
     );
   }
 
-  function row(content: string, width: number): string {
+  function row(content: string, width: number, right = border("│")): string {
     const fitted = truncateToWidth(content, width, "");
-    return `${border("│")} ${fitted}${" ".repeat(Math.max(0, width - visibleWidth(fitted)))} ${border("│")}`;
+    return `${border("│")} ${fitted}${" ".repeat(Math.max(0, width - visibleWidth(fitted)))} ${right}`;
   }
 
   function edge(left: string, right: string, label: string, info: string, width: number): string {
-    const fill = Math.max(0, width - visibleWidth(label) - visibleWidth(info) - 2);
-    const line = border(`${left}─`) + label + border("─".repeat(fill)) + info + border(`─${right}`);
-    return truncateToWidth(line, width + 2, "");
+    const fittedInfo = truncateToWidth(info, Math.max(0, width - 2), "");
+    const fittedLabel = truncateToWidth(
+      label,
+      Math.max(0, width - 2 - visibleWidth(fittedInfo)),
+      "…",
+    );
+    const fill = Math.max(0, width - visibleWidth(fittedLabel) - visibleWidth(fittedInfo) - 2);
+    return (
+      border(`${left}─`) + fittedLabel + border("─".repeat(fill)) + fittedInfo + border(`─${right}`)
+    );
   }
 
   return {
@@ -131,27 +155,44 @@ export function createOverlay({
     },
 
     render(width) {
+      if (width < 5) return [truncateToWidth("btw", Math.max(0, width), "")];
+
       const inner = width - 2;
       const content = inner - 2;
-      const height = Math.max(4, Math.floor(tui.terminal.rows * 0.8) - 4);
+      const height = Math.max(1, Math.floor(tui.terminal.rows * 0.8) - 4);
       page = height;
 
       const lines = transcript(content);
-      scroll = Math.min(scroll, Math.max(0, lines.length - height));
-      const end = lines.length - scroll;
-      const visible = lines.slice(Math.max(0, end - height), end);
+      lineCount = lines.length;
+      const maxScroll = Math.max(0, lineCount - height);
+      scrollTop = followEnd ? maxScroll : Math.min(scrollTop, maxScroll);
+      thumbHeight = Math.max(1, Math.floor((height * height) / Math.max(height, lineCount)));
+      thumbTop = maxScroll > 0 ? Math.round((scrollTop / maxScroll) * (height - thumbHeight)) : 0;
+      const end = Math.min(lineCount, scrollTop + height);
+      const visible = lines.slice(scrollTop, end);
       while (visible.length < height) visible.push("");
-      const position = lines.length > height ? ` ${end}/${lines.length} ` : "";
+      const position = maxScroll > 0 ? ` ${scrollTop + 1}-${end}/${lineCount} ` : "";
 
       return [
         edge("┌", "┐", theme.fg("accent", ` btw · ${title} `), "", inner),
-        ...visible.map((line) => row(line, content)),
+        ...visible.map((line, index) => {
+          if (maxScroll === 0) return row(line, content);
+          const thumb = index >= thumbTop && index < thumbTop + thumbHeight;
+          return row(
+            line,
+            content,
+            theme.fg(thumb ? "scrollbarThumb" : "scrollbarTrack", thumb ? "┃" : "│"),
+          );
+        }),
         border(`├${"─".repeat(inner)}┤`),
         row(input.render(content)[0] ?? "", content),
         edge(
           "└",
           "┘",
-          theme.fg("dim", " enter ask · esc close · ↑↓ scroll "),
+          theme.fg(
+            "dim",
+            ` enter ask · esc close · ${tui.mode === "fullscreen" ? "wheel/↑↓" : "↑↓"} scroll `,
+          ),
           theme.fg("dim", position),
           inner,
         ),
@@ -163,13 +204,43 @@ export function createOverlay({
         onEscape();
         return;
       }
-      if (keybindings.matches(data, "tui.select.up")) scroll += 1;
-      else if (keybindings.matches(data, "tui.select.down")) scroll = Math.max(0, scroll - 1);
-      else if (keybindings.matches(data, "tui.select.pageUp")) scroll += page;
-      else if (keybindings.matches(data, "tui.select.pageDown"))
-        scroll = Math.max(0, scroll - page);
+      if (keybindings.matches(data, "tui.select.up")) scrollTo(scrollTop - 1);
+      else if (keybindings.matches(data, "tui.select.down")) scrollTo(scrollTop + 1);
+      else if (keybindings.matches(data, "tui.select.pageUp")) scrollTo(scrollTop - page);
+      else if (keybindings.matches(data, "tui.select.pageDown")) scrollTo(scrollTop + page);
       else input.handleInput(data);
       tui.requestRender();
+    },
+
+    handleMouse(event) {
+      if (event.type === "wheel") {
+        scrollTo(scrollTop + (event.wheelDelta ?? 0));
+        return { handled: true };
+      }
+      if (dragOffset != null) {
+        if (event.type === "drag") {
+          dragThumb(event.y, dragOffset);
+          return { handled: true };
+        }
+        if (event.type === "release") {
+          dragOffset = undefined;
+          return { handled: true, render: false };
+        }
+      }
+      if (
+        event.type === "press" &&
+        event.button === "left" &&
+        event.x === event.width - 1 &&
+        event.y >= 1 &&
+        event.y <= page &&
+        lineCount > page
+      ) {
+        const thumb = event.y - 1 >= thumbTop && event.y - 1 < thumbTop + thumbHeight;
+        dragOffset = thumb ? event.y - 1 - thumbTop : Math.floor(thumbHeight / 2);
+        if (!thumb) dragThumb(event.y, dragOffset);
+        return { handled: true, capture: true };
+      }
+      return undefined;
     },
 
     invalidate() {

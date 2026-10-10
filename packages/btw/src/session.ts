@@ -3,6 +3,7 @@ import {
   createAgentSession,
   DefaultResourceLoader,
   getAgentDir,
+  ModelRuntime,
   SessionManager,
   type AgentSession,
   type ExtensionAPI,
@@ -65,8 +66,19 @@ export async function createSideSession(
     sessionManager.appendMessage(answer);
   }
 
+  // A fresh SDK runtime only knows built-ins and models.json. Copy provider registrations
+  // without reloading their extensions, which would also enable unrelated tools and hooks.
+  const modelRuntime = await ModelRuntime.create();
+  for (const providerId of ctx.modelRegistry.getRegisteredProviderIds()) {
+    const provider = ctx.modelRegistry.getRegisteredNativeProvider(providerId);
+    if (provider) modelRuntime.registerNativeProvider(provider);
+    const config = ctx.modelRegistry.getRegisteredProviderConfig(providerId);
+    if (config) modelRuntime.registerProvider(providerId, config);
+  }
+
   const { session } = await createAgentSession({
     cwd: ctx.cwd,
+    modelRuntime,
     model: ctx.model,
     thinkingLevel,
     tools: ["read", "grep", "find", "ls"],

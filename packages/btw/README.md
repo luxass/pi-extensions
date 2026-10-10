@@ -12,7 +12,9 @@ pi install npm:@luxass/pi-btw
 
 Run `/btw` to open the side thread, or `/btw <text>` to open it and ask right away. If a thread already exists, `/btw` asks whether to continue it or start fresh.
 
-In the popover, **Enter** asks, **Esc** stops a running answer or closes the popover, and **↑↓** / **PgUp PgDn** scroll. Closing a non-empty thread asks whether to keep it or inject a summary into the main chat.
+In the popover, **Enter** asks, **Esc** stops a running answer or closes the popover, and **↑↓** / **PgUp PgDn** scroll. In fullscreen mode, you can also scroll with the mouse wheel or trackpad, click the scrollbar on the right edge, or drag its thumb. Wheel speed follows Pi's `fullscreenWheelScrollLines` setting. Regular mode keeps terminal-owned mouse scrolling, so use the keyboard inside the popover.
+
+Scrolling up holds your place while an answer streams. Scroll back to the bottom to follow new output again. Closing a non-empty thread asks whether to keep it or inject a summary into the main chat.
 
 The side thread sees the main conversation up to the moment you ask, using your current model and thinking level. Its tools are read-only (`read`, `grep`, `find`, `ls`), so it can look things up but not change files. Because the side request starts with the same prefix as the main chat, providers with prompt caching can reuse the main conversation's cache.
 
@@ -20,4 +22,4 @@ Injecting asks the model for a summary, sends it as a user message, and clears t
 
 The side thread is stored in the session log, follows branch navigation, and never enters the main agent's context unless you inject it.
 
-Models from providers registered by other extensions are not available in the side thread; it resolves models from Pi's `auth.json` and `models.json`.
+When the popover opens, the side thread copies extension-registered providers from the main session, including their streaming and authentication handlers. Stored credentials still come from Pi's `auth.json`. Provider extensions are not reloaded, so their tools and lifecycle hooks are not enabled in the side thread.
