@@ -10,8 +10,10 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 
+import { DEFAULT_BTW_TOOLS, type BtwToolName } from "./settings.ts";
+
 const SIDE_PROMPT =
-  "The user is asking a side question (a 'btw') about the conversation above. The main agent keeps its own thread; you only answer here. Answer directly and briefly. Your tools are read-only.";
+  "The user is asking a side question (a 'btw') about the conversation above. The main agent keeps its own thread; handle the side question here. Answer directly and briefly.";
 
 const SUMMARY_PROMPT =
   "Summarize this side conversation for the main agent. Keep decisions, findings, open questions, and next steps. Output only the summary.";
@@ -41,21 +43,39 @@ export function answerText(message: AssistantMessage): string {
     .trim();
 }
 
-export async function createSideSession(
-  ctx: ExtensionContext,
-  thinkingLevel: ReturnType<ExtensionAPI["getThinkingLevel"]>,
-  thread: Exchange[],
-): Promise<AgentSession> {
+interface SideSessionOptions {
+  ctx: ExtensionContext;
+  thinkingLevel: ReturnType<ExtensionAPI["getThinkingLevel"]>;
+  thread: readonly Exchange[];
+  tools: readonly BtwToolName[];
+}
+
+export async function createSideSession({
+  ctx,
+  thinkingLevel,
+  thread,
+  tools,
+}: SideSessionOptions): Promise<AgentSession> {
+  const toolAccess =
+    tools.length === 0
+      ? "No tools are enabled in this side session."
+      : `Your enabled tools are: ${tools.join(", ")}. ${
+          tools.every((tool) => DEFAULT_BTW_TOOLS.includes(tool))
+            ? "Your tools are read-only."
+            : "Use tools only for actions requested in this side conversation."
+        }`;
   const resourceLoader = new DefaultResourceLoader({
     cwd: ctx.cwd,
     agentDir: getAgentDir(),
     noExtensions: true,
-    appendSystemPrompt: [SIDE_PROMPT],
+    appendSystemPrompt: [
+      `${SIDE_PROMPT} ${toolAccess} Do not assume tools from the main conversation are available here.`,
+    ],
   });
   await resourceLoader.reload();
 
   // Seeding with the main branch keeps its system prompt in front, so the request shares the
-  // main chat's prefix and Pi only appends a patch for SIDE_PROMPT and the read-only tools.
+  // main chat's prefix and Pi only appends a patch for SIDE_PROMPT and the configured tools.
   const sessionManager = SessionManager.inMemory(
     ctx.cwd,
     undefined,
@@ -81,7 +101,7 @@ export async function createSideSession(
     modelRuntime,
     model: ctx.model,
     thinkingLevel,
-    tools: ["read", "grep", "find", "ls"],
+    tools: [...tools],
     resourceLoader,
     sessionManager,
   });

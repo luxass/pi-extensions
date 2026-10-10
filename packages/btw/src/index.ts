@@ -8,6 +8,7 @@ import type {
 
 import { createOverlay } from "./overlay";
 import { answerText, createSideSession, summarize, type BtwState, type Exchange } from "./session";
+import { getBtwTools, type BtwToolName } from "./settings.ts";
 
 const EXCHANGE_ENTRY = "btw-exchange";
 const RESET_ENTRY = "btw-reset";
@@ -16,6 +17,16 @@ const CONTINUE = "Continue side thread";
 const FRESH = "Start fresh";
 const KEEP = "Keep side thread";
 const INJECT = "Inject summary into main chat";
+
+type ToolDetailArgs = {
+  pattern?: string;
+  path?: string;
+  command?: string;
+};
+
+function toolDetail({ args }: { args: ToolDetailArgs }): string {
+  return args.pattern ?? args.path ?? args.command ?? "";
+}
 
 export default function btw(pi: ExtensionAPI) {
   const state: BtwState = { thread: [], busy: false };
@@ -41,11 +52,10 @@ export default function btw(pi: ExtensionAPI) {
     if (event.type === "message_update" && event.message.role === "assistant") {
       pending.text = answerText(event.message);
     } else if (event.type === "tool_execution_start") {
-      const { path, pattern } = event.args as { path?: string; pattern?: string };
       pending.tools.push({
         id: event.toolCallId,
         name: event.toolName,
-        detail: pattern ?? path ?? "",
+        detail: toolDetail(event),
         status: "running",
       });
     } else if (event.type === "tool_execution_end") {
@@ -54,7 +64,11 @@ export default function btw(pi: ExtensionAPI) {
     }
   }
 
-  async function open(ctx: ExtensionCommandContext, initial: string): Promise<void> {
+  async function open(
+    ctx: ExtensionCommandContext,
+    initial: string,
+    tools: readonly BtwToolName[],
+  ): Promise<void> {
     // Lives only while the overlay is open, so each opening sees the latest main conversation.
     let side: AgentSession | undefined;
 
@@ -67,7 +81,12 @@ export default function btw(pi: ExtensionAPI) {
           tui.requestRender();
           try {
             if (side == null) {
-              side = await createSideSession(ctx, pi.getThinkingLevel(), state.thread);
+              side = await createSideSession({
+                ctx,
+                thinkingLevel: pi.getThinkingLevel(),
+                thread: state.thread,
+                tools,
+              });
               side.subscribe((event) => {
                 track(event);
                 tui.requestRender();
@@ -127,13 +146,14 @@ export default function btw(pi: ExtensionAPI) {
   pi.registerCommand("btw", {
     description: "ask a side question without derailing the main conversation",
     handler: async (args, ctx) => {
+      const tools = getBtwTools(pi.getSettings());
       const question = args.trim();
       if (!question && state.thread.length > 0) {
         const choice = await ctx.ui.select("btw", [CONTINUE, FRESH]);
         if (choice == null) return;
         if (choice === FRESH) reset();
       }
-      await open(ctx, question);
+      await open(ctx, question, tools);
     },
   });
 
