@@ -1,5 +1,17 @@
 # @luxass/pi-btw
 
+## 0.2.0
+
+### Minor Changes
+
+- [`cb798bc`](https://github.com/luxass/pi-extensions/commit/cb798bc86c2af78f32bdb92ef0c9d0d0bcb1a68c) Thanks [@luxass](https://github.com/luxass)! - Add `btw.tools` settings to configure the side conversation's built-in tool access independently of the main chat. Keep the read-only defaults when unset, allow an empty list to disable all tools, and reject invalid tool names. Use Pi's merged user and trusted project settings, and update the side prompt to describe the tools actually enabled.
+
+### Patch Changes
+
+- [`ab869a7`](https://github.com/luxass/pi-extensions/commit/ab869a78e06340357c4f13f6cc3f862421d5f05a) Thanks [@luxass](https://github.com/luxass)! - Add mouse wheel and trackpad scrolling, plus a clickable and draggable scrollbar, to fullscreen BTW popovers. Keep the viewport steady while answers stream, and preserve popup borders and the scroll position counter at narrow widths.
+
+  Fix side conversations with extension-registered providers such as Crow by copying their authentication and streaming handlers without loading their tools or lifecycle hooks.
+
 ## 0.1.2
 
 ### Patch Changes
